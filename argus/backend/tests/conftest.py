@@ -8,6 +8,7 @@ from docker import DockerClient
 from flask import g
 
 from argus.backend.plugins.loader import all_plugin_types
+from argus.backend.plugins.sct.service import SCTService
 from argus.backend.service.testrun import TestRunService
 from argus.backend.service.views_widgets.pytest import PytestViewService
 from argus.backend.util.config import Config
@@ -138,6 +139,11 @@ def client_service(argus_db):
 @fixture(scope='session')
 def pv_service(argus_db) -> PytestViewService:
     return PytestViewService()
+
+
+@fixture(scope='session')
+def sct_service(argus_db) -> SCTService:
+    return SCTService()
 
 
 @fixture(scope='session')

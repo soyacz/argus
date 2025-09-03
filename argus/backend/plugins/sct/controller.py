@@ -118,8 +118,44 @@ def sct_nemesis_finalize(run_id: str):
 @bp.route("/<string:run_id>/events/submit", methods=["POST"])
 @api_login_required
 def sct_events_submit(run_id: str):
+    """
+        Legacy endpoint. Deprecated
+        Submit a structure of EventsBySeverity that will be saved
+        onto SCTTestRun
+    """
     payload = get_payload(request)
     result = SCTService.submit_events(run_id=run_id, events=payload["events"])
+    return {
+        "status": "ok",
+        "response": result
+    }
+
+
+@bp.route("/<string:run_id>/events/get", methods=["GET"])
+@api_login_required
+def sct_events_get(run_id: str):
+    limit = int(request.args.get("limit", 100))
+    before = request.args.get("before")
+    severities = request.args.getlist("severity")
+    result = SCTService.get_events(run_id=run_id, limit=limit, before=before, severities=severities)
+    return {
+        "status": "ok",
+        "response": result
+    }
+
+
+@bp.route("/<string:run_id>/event/submit", methods=["POST"])
+@api_login_required
+def sct_event_submit(run_id: str):
+    """
+        Submit an event or a collection of events
+    """
+    payload = get_payload(request)
+    event_data = payload["data"]
+    if isinstance(event_data, list):
+        result = [SCTService.submit_event(run_id=run_id, events=e) for e in event_data]
+    else:
+        result = SCTService.submit_event(run_id=run_id, events=event_data)
     return {
         "status": "ok",
         "response": result
