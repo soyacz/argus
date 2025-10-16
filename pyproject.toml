@@ -40,7 +40,7 @@ argus-driver-matrix-client = 'argus.client.driver_matrix_tests.cli:cli'
 [project.optional-dependencies]
 web-backend = [
     "PyYAML ~= 6.0.0",
-    "scylla-driver >= 3.26.8",
+    "scylla-driver >= 3.29.4",
     "Flask ~= 3.0.0",
     "Flask-WTF ~= 1.0.0",
     "Flask-Login ~= 0.5.0",
@@ -115,4 +115,9 @@ log_cli_level = "INFO"
 norecursedirs = [
     "pytest-argus-reporter/tests",
     "argus/backend/service",
+]
+
+[dependency-groups]
+dev = [
+    "scylla-driver>=3.29.4",
 ]
