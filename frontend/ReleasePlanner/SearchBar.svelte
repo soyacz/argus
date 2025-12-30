@@ -74,6 +74,7 @@
             testId: item.test?.id,
             groupId: item.group?.id,
             releaseId: item.release?.id,
+            pluginName: item.plugin_name || item.pluginName,
             type: item.type,
             id: item.id,
 

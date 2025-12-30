@@ -51,7 +51,12 @@
         }
         case "run": {
             const testId = item.testId;
-            if (!testId) break;
+            if (!testId) {
+                if (item.pluginName) {
+                    window.location.href = `/tests/${item.pluginName}/${item.id}`;
+                }
+                break;
+            }
             additionalRuns[testId] = [...(additionalRuns[testId] || []), item.id];
             testRuns.includes(item.testId) ? null: testRuns.push(item.testId);
             break;

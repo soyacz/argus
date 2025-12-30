@@ -9,7 +9,7 @@ from uuid import UUID
 from cassandra.cqlengine.models import Model
 from argus.backend.models.web import ArgusGroup, ArgusRelease, ArgusTest
 from argus.backend.plugins.core import PluginModelBase
-from argus.backend.plugins.loader import all_plugin_models
+from argus.backend.plugins.loader import AVAILABLE_PLUGINS, all_plugin_models
 from argus.backend.util.common import get_build_number
 
 
@@ -48,6 +48,18 @@ class TestLookup:
         return None
 
     @classmethod
+    def find_run_with_plugin(cls, run_id: UUID) -> tuple[PluginModelBase | None, str | None]:
+        for plugin_name, plugin in AVAILABLE_PLUGINS.items():
+            for model in plugin.all_models:
+                if not issubclass(model, PluginModelBase):
+                    continue
+                try:
+                    return model.get(id=run_id), plugin_name
+                except model.DoesNotExist:
+                    pass
+        return None, None
+
+    @classmethod
     def query_to_uuid(cls, query: str) -> UUID | None:
         try:
             uuid = UUID(query.strip())
@@ -81,17 +93,23 @@ class TestLookup:
 
     @classmethod
     def make_single_run_response(cls, run_id: UUID) -> list[dict[str, Any]]:
-        run = cls.find_run(run_id)
+        run, plugin_name = cls.find_run_with_plugin(run_id)
         if run:
             run = dict(run.items())
             run["type"] = "run"
-            run["test"] = dict(cls.resolve_run_test(run["test_id"]).items()) if run["test_id"] else None
+            run["plugin_name"] = plugin_name
+            test_id = run.get("test_id")
+            run["test"] = dict(cls.resolve_run_test(test_id).items()) if test_id else None
+            run["group"] = dict(cls.resolve_run_group(run.get("group_id")).items()) if run.get("group_id") else None
+            run["release"] = dict(cls.resolve_run_release(run.get("release_id")).items()) if run.get("release_id") else None
+            run["build_number"] = get_build_number(run["build_job_url"]) if run.get("build_job_url") else None
             if run["test"]:
                 name = run["test"]["name"]
-            run["group"] = dict(cls.resolve_run_group(run["group_id"]).items())if run["group_id"] else None
-            run["release"] = dict(cls.resolve_run_release(run["release_id"]).items()) if run["release_id"] else None
-            run["build_number"] = get_build_number(run["build_job_url"])
-            run["name"] = f"{name}#{run['build_number']}"
+                run["name"] = f"{name}#{run['build_number']}"
+            elif run["build_number"]:
+                run["name"] = f"Run #{run['build_number']}"
+            else:
+                run["name"] = f"Run {run_id}"
 
             return [run]
 
