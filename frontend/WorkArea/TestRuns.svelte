@@ -27,6 +27,7 @@
     /**
      * @typedef {Object} Props
      * @property {any} testId
+     * @property {string} [pluginName]
      * @property {any} tab
      * @property {any} [listId]
      * @property {boolean} [filtered]
@@ -37,6 +38,7 @@
     /** @type {Props} */
     let {
         testId,
+        pluginName = "",
         tab,
         listId = uuidv4(),
         filtered = false,
@@ -49,7 +51,25 @@
     let runRefreshInterval;
     let runs = $state([]);
     let runLimit = 10;
-    let testInfo = $state();
+    const initialTestInfo = !testId && pluginName ? {
+        test: {
+            id: undefined,
+            name: "Unknown test",
+            pretty_name: "",
+            plugin_name: pluginName
+        },
+        release: {
+            id: undefined,
+            name: "Unknown release",
+        },
+        group: {
+            id: undefined,
+            name: "Unknown group",
+            pretty_name: ""
+        }
+    } : undefined;
+    let testInfo = $state(initialTestInfo);
+    let runOnly = $derived(!testId && pluginName);
 
     const states = {
         INIT: "INIT",
@@ -296,6 +316,15 @@
     };
 
     const main = async () => {
+        if (!testId) {
+            if (pluginName) {
+                testInfo = initialTestInfo;
+                setState(states.FETCH_SUCCESS);
+            } else {
+                setState(states.FETCH_TEST_INFO_FAILED);
+            }
+            return;
+        }
         await fetchTestInfo();
         if (testInfo) {
             fetchTestRuns();
@@ -315,7 +344,23 @@
 </script>
 
 <div class:d-none={filtered} class="accordion-item border-none  bg-main mb-1">
-{#if testInfo}
+{#if runOnly}
+    {#if additionalRuns.length === 0}
+        <TestRunsMessage state={stateMap[currentState]}>
+            <div>No runs available.</div>
+        </TestRunsMessage>
+    {:else}
+        <div class="container-fluid p-1 bg-light">
+            {#each additionalRuns as runId (runId)}
+                <TestRunDispatcher
+                    {runId}
+                    {testInfo}
+                    tab={tab}
+                />
+            {/each}
+        </div>
+    {/if}
+{:else if testInfo}
     <div
         class="border-none mb-2"
     >

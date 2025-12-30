@@ -38,7 +38,12 @@
     const dispatch = createEventDispatcher();
     let testRun = $state(undefined);
     let runRefreshInterval;
-    let activeTab = $state(tab.toLowerCase() || "details");
+    const restrictedTabs = ["discuss", "issues"];
+    const hasTestId = $derived(Boolean(testInfo?.test?.id));
+    const normalizedTab = tab.toLowerCase() || "details";
+    let activeTab = $state(
+        !hasTestId && restrictedTabs.includes(normalizedTab) ? "details" : normalizedTab
+    );
     let failedToLoad = $state(false);
 
     // Track which tabs have been visited
@@ -47,6 +52,9 @@
 
     const setActiveTab = (tabName) => {
         tabName = tabName.toLowerCase();
+        if (!hasTestId && restrictedTabs.includes(tabName)) {
+            return;
+        }
         if (tabName !== activeTab) {
             activeTab = tabName;
             visitedTabs[tabName] = true;
@@ -171,30 +179,32 @@
                         onkeydown={(e) => e.key === "Enter" && setActiveTab("results")}
                         ><Fa icon={faClipboard}/> Results</button
                     >
-                    <button
-                        class="nav-link"
-                        class:active={activeTab === 'discuss'}
-                        id="nav-discuss-tab-{runId}"
-                        data-bs-toggle="tab"
-                        data-bs-target="#nav-discuss-{runId}"
-                        type="button"
-                        onclick={() => setActiveTab("discuss")}
-                        onkeydown={(e) => e.key === "Enter" && setActiveTab("discuss")}
-                        role="tab"
-                        ><Fa icon={faComments}/> Discussion</button
-                    >
-                    <button
-                        class="nav-link"
-                        class:active={activeTab === 'issues'}
-                        id="nav-issues-tab-{runId}"
-                        data-bs-toggle="tab"
-                        data-bs-target="#nav-issues-{runId}"
-                        type="button"
-                        role="tab"
-                        onclick={() => setActiveTab("issues")}
-                        onkeydown={(e) => e.key === "Enter" && setActiveTab("issues")}
-                        ><Fa icon={faCodeBranch}/> Issues</button
-                    >
+                    {#if hasTestId}
+                        <button
+                            class="nav-link"
+                            class:active={activeTab === 'discuss'}
+                            id="nav-discuss-tab-{runId}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#nav-discuss-{runId}"
+                            type="button"
+                            onclick={() => setActiveTab("discuss")}
+                            onkeydown={(e) => e.key === "Enter" && setActiveTab("discuss")}
+                            role="tab"
+                            ><Fa icon={faComments}/> Discussion</button
+                        >
+                        <button
+                            class="nav-link"
+                            class:active={activeTab === 'issues'}
+                            id="nav-issues-tab-{runId}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#nav-issues-{runId}"
+                            type="button"
+                            role="tab"
+                            onclick={() => setActiveTab("issues")}
+                            onkeydown={(e) => e.key === "Enter" && setActiveTab("issues")}
+                            ><Fa icon={faCodeBranch}/> Issues</button
+                        >
+                    {/if}
                     <button
                         class="nav-link"
                         class:active={activeTab === 'activity'}
@@ -238,7 +248,7 @@
                     id="nav-discuss-{runId}"
                     role="tabpanel"
                 >
-                    {#if visitedTabs['discuss']}
+                    {#if hasTestId && visitedTabs['discuss']}
                         <TestRunComments {testRun} {testInfo}/>
                     {/if}
                 </div>
@@ -249,9 +259,11 @@
                     id="nav-issues-{runId}"
                     role="tabpanel"
                 >
-                    <SirenadaIssueTemplate test_run={testRun} test={testInfo.test} />
+                    {#if hasTestId}
+                        <SirenadaIssueTemplate test_run={testRun} test={testInfo.test} />
+                    {/if}
                     <div class="py-2 bg-white">
-                        {#if visitedTabs['issues']}
+                        {#if hasTestId && visitedTabs['issues']}
                             <IssueTab {testInfo} {runId} />
                         {/if}
                     </div>

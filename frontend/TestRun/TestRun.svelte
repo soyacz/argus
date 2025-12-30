@@ -161,12 +161,17 @@
         tab = ""
     }: Props = $props();
 
+    const restrictedTabs = ["results", "discuss", "issues"];
+    const hasTestId = $derived(Boolean(testInfo?.test?.id));
+    const normalizedTab = tab.toLowerCase() || "details";
 
     const dispatch = createEventDispatcher();
 
     let testRun: SCTTestRun | undefined = $state();
     let runRefreshInterval: ReturnType<typeof setInterval>;
-    let activeTab: string = $state(tab.toLowerCase() || "details");
+    let activeTab: string = $state(
+        !hasTestId && restrictedTabs.includes(normalizedTab) ? "details" : normalizedTab
+    );
     let failedToLoad = $state(false);
     let jUnitFetched = $state(false);
     let jUnitResults: JUnitReport[] = $state([]);
@@ -237,6 +242,9 @@
 
     const setActiveTab = (tabName: string) => {
         tabName = tabName.toLowerCase();
+        if (!hasTestId && restrictedTabs.includes(tabName)) {
+            return;
+        }
         if (tabName !== activeTab) {
             activeTab = tabName;
             visitedTabs[tabName] = true;
@@ -391,19 +399,21 @@
                             <Fa icon={faClipboard} /> Test Results
                         </button>
                     {/if}
-                    <button
-                        class="nav-link"
-                        class:active={activeTab === "results"}
-                        id="nav-results-tab-{runId}"
-                        data-bs-toggle="tab"
-                        data-bs-target="#nav-results-{runId}"
-                        type="button"
-                        role="tab"
-                        onclick={() => setActiveTab("results")}
-                        onkeydown={(e) => e.key === "Enter" && setActiveTab("results")}
-                    >
-                        <Fa icon={faTable} /> Results
-                    </button>
+                    {#if hasTestId}
+                        <button
+                            class="nav-link"
+                            class:active={activeTab === "results"}
+                            id="nav-results-tab-{runId}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#nav-results-{runId}"
+                            type="button"
+                            role="tab"
+                            onclick={() => setActiveTab("results")}
+                            onkeydown={(e) => e.key === "Enter" && setActiveTab("results")}
+                        >
+                            <Fa icon={faTable} /> Results
+                        </button>
+                    {/if}
                     <button
                         class="nav-link"
                         class:active={activeTab === "events"}
@@ -443,32 +453,34 @@
                     >
                         <Fa icon={faBox} /> Logs
                     </button>
-                    <button
-                        class="nav-link"
-                        class:active={activeTab === "discuss"}
-                        id="nav-discuss-tab-{runId}"
-                        data-bs-toggle="tab"
-                        data-bs-target="#nav-discuss-{runId}"
-                        type="button"
-                        role="tab"
-                        onclick={() => setActiveTab("discuss")}
-                        onkeydown={(e) => e.key === "Enter" && setActiveTab("discuss")}
-                    >
-                        <Fa icon={faComments} /> Discussion
-                    </button>
-                    <button
-                        class="nav-link"
-                        class:active={activeTab === "issues"}
-                        id="nav-issues-tab-{runId}"
-                        data-bs-toggle="tab"
-                        data-bs-target="#nav-issues-{runId}"
-                        type="button"
-                        role="tab"
-                        onclick={() => setActiveTab("issues")}
-                        onkeydown={(e) => e.key === "Enter" && setActiveTab("issues")}
-                    >
-                        <Fa icon={faCodeBranch} /> Issues
-                    </button>
+                    {#if hasTestId}
+                        <button
+                            class="nav-link"
+                            class:active={activeTab === "discuss"}
+                            id="nav-discuss-tab-{runId}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#nav-discuss-{runId}"
+                            type="button"
+                            role="tab"
+                            onclick={() => setActiveTab("discuss")}
+                            onkeydown={(e) => e.key === "Enter" && setActiveTab("discuss")}
+                        >
+                            <Fa icon={faComments} /> Discussion
+                        </button>
+                        <button
+                            class="nav-link"
+                            class:active={activeTab === "issues"}
+                            id="nav-issues-tab-{runId}"
+                            data-bs-toggle="tab"
+                            data-bs-target="#nav-issues-{runId}"
+                            type="button"
+                            role="tab"
+                            onclick={() => setActiveTab("issues")}
+                            onkeydown={(e) => e.key === "Enter" && setActiveTab("issues")}
+                        >
+                            <Fa icon={faCodeBranch} /> Issues
+                        </button>
+                    {/if}
                     <button
                         class="nav-link"
                         class:active={activeTab === "activity"}
@@ -570,7 +582,7 @@
                     id="nav-results-{runId}"
                     role="tabpanel"
                 >
-                    {#if visitedTabs["results"]}
+                    {#if hasTestId && visitedTabs["results"]}
                         <ResultsTab id={runId} test_id={testInfo.test.id} />
                     {/if}
                 </div>
@@ -582,7 +594,13 @@
                     role="tabpanel"
                 >
                     {#if visitedTabs["events"]}
-                        <EventsTab {testRun} on:issueAttach={(e) => submitIssue(e.detail.url, runId, testInfo.test.id)} />
+                        <EventsTab
+                            {testRun}
+                            on:issueAttach={(e) => {
+                                if (!hasTestId) return;
+                                submitIssue(e.detail.url, runId, testInfo.test.id);
+                            }}
+                        />
                     {/if}
                 </div>
                 <div
@@ -623,7 +641,7 @@
                     id="nav-discuss-{runId}"
                     role="tabpanel"
                 >
-                    {#if visitedTabs["discuss"]}
+                    {#if hasTestId && visitedTabs["discuss"]}
                         <TestRunComments {testRun} {testInfo} />
                     {/if}
                 </div>
@@ -634,9 +652,11 @@
                     id="nav-issues-{runId}"
                     role="tabpanel"
                 >
-                    <IssueTemplate test_run={testRun} test={testInfo.test} />
-                    {#if visitedTabs["issues"]}
-                        <IssueTab {testInfo} {runId} />
+                    {#if hasTestId}
+                        <IssueTemplate test_run={testRun} test={testInfo.test} />
+                        {#if visitedTabs["issues"]}
+                            <IssueTab {testInfo} {runId} />
+                        {/if}
                     {/if}
                 </div>
                 <div

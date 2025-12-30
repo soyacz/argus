@@ -5,6 +5,7 @@ const app = mount(TestRuns, {
     target: document.querySelector("div#testRunBody"),
     props: {
         testId: gTestId,
+        pluginName: gPluginName,
         additionalRuns: gRun,
         tab: gTab
     }
