@@ -1,5 +1,8 @@
 import logging
 import os
+import sys
+import signal
+import atexit
 import cassandra.cluster
 from flask import Flask, request
 from prometheus_flask_exporter import NO_PREFIX
@@ -16,6 +19,69 @@ from argus.backend.util.config import Config
 from jwt import PyJWKClient
 
 LOGGER = logging.getLogger(__name__)
+
+
+# Track cleanup state to avoid double-cleanup
+class _CleanupState:
+    done = False
+    lock = False
+
+
+# Register cleanup at module level (before app initialization)
+def _cleanup_on_exit():
+    if _CleanupState.done or _CleanupState.lock:
+        return
+    _CleanupState.lock = True
+    print(">>> ATEXIT: Cleaning up Scylla connections...", file=sys.stderr, flush=True)
+    try:
+        ScyllaCluster.shutdown()
+        _CleanupState.done = True
+        print(">>> ATEXIT: Scylla connections closed.", file=sys.stderr, flush=True)
+    except (AttributeError, RuntimeError) as e:
+        print(f">>> ATEXIT: Error during cleanup: {e}", file=sys.stderr, flush=True)
+    finally:
+        _CleanupState.lock = False
+
+
+def _signal_handler(signum, frame):
+    if _CleanupState.done or _CleanupState.lock:
+        sys.exit(0)
+    _CleanupState.lock = True
+    print(f">>> SIGNAL {signum}: Received, cleaning up Scylla...", file=sys.stderr, flush=True)
+    try:
+        ScyllaCluster.shutdown()
+        _CleanupState.done = True
+        print(f">>> SIGNAL {signum}: Cleanup complete, exiting...", file=sys.stderr, flush=True)
+    except (AttributeError, RuntimeError) as e:
+        print(f">>> SIGNAL {signum}: Error during cleanup: {e}", file=sys.stderr, flush=True)
+    finally:
+        _CleanupState.lock = False
+    sys.exit(0)
+
+
+# Try to register with uwsgi.atexit if available
+try:
+    import uwsgi
+
+    print(">>> Registering cleanup with uwsgi.atexit...", file=sys.stderr, flush=True)
+
+    def _uwsgi_cleanup():
+        print(">>> UWSGI.ATEXIT: Cleaning up Scylla connections...", file=sys.stderr, flush=True)
+        try:
+            ScyllaCluster.shutdown()
+            print(">>> UWSGI.ATEXIT: Scylla connections closed.", file=sys.stderr, flush=True)
+        except (AttributeError, RuntimeError) as e:
+            print(f">>> UWSGI.ATEXIT: Error: {e}", file=sys.stderr, flush=True)
+
+    uwsgi.atexit = _uwsgi_cleanup
+    print(">>> uwsgi.atexit registered successfully", file=sys.stderr, flush=True)
+except (ImportError, AttributeError) as e:
+    print(f">>> uwsgi.atexit not available: {e}, using standard handlers", file=sys.stderr, flush=True)
+
+atexit.register(_cleanup_on_exit)
+signal.signal(signal.SIGTERM, _signal_handler)
+signal.signal(signal.SIGINT, _signal_handler)
+print(">>> ATEXIT handler and SIGNAL handlers registered at module level", file=sys.stderr, flush=True)
 
 
 def register_metrics():
@@ -82,6 +148,7 @@ def start_server(config=None) -> Flask:
             pass
 
     app.logger.info("Ready.")
+
     return app
 
 

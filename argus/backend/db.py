@@ -77,7 +77,21 @@ class ScyllaCluster:
     @classmethod
     def shutdown(cls):
         if cls.APP_INSTANCE:
-            cls.APP_INSTANCE.cluster.shutdown()
+            # Explicitly close the session if it was initialized (cached_property)
+            if 'session' in cls.APP_INSTANCE.__dict__:
+                try:
+                    LOGGER.debug("Shutting down session...")
+                    cls.APP_INSTANCE.session.shutdown()
+                except Exception as e:
+                    LOGGER.warning(f"Error shutting down session: {e}")
+
+            # Shutdown the cluster
+            try:
+                LOGGER.debug("Shutting down cluster...")
+                cls.APP_INSTANCE.cluster.shutdown()
+            except Exception as e:
+                LOGGER.warning(f"Error shutting down cluster: {e}")
+
             cls.APP_INSTANCE = None
 
     def prepare(self, query: str) -> PreparedStatement:
