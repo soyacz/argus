@@ -1,4 +1,5 @@
 from functools import cached_property
+import concurrent.futures
 import logging
 from typing import Optional
 from flask import current_app, g, Flask
@@ -75,10 +76,30 @@ class ScyllaCluster:
         return cls.APP_INSTANCE
 
     @classmethod
-    def shutdown(cls):
+    def shutdown(cls, timeout: int = 5):
+        """
+        Shutdown the cluster connection with a timeout.
+
+        Args:
+            timeout: Maximum time in seconds to wait for shutdown (default: 5)
+        """
         if cls.APP_INSTANCE:
-            cls.APP_INSTANCE.cluster.shutdown()
-            cls.APP_INSTANCE = None
+            try:
+                # Set a timeout for cluster shutdown to prevent hanging
+                executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+                future = executor.submit(cls.APP_INSTANCE.cluster.shutdown)
+                try:
+                    future.result(timeout=timeout)
+                    LOGGER.info("Cluster shutdown completed gracefully")
+                except concurrent.futures.TimeoutError:
+                    LOGGER.warning(f"Cluster shutdown exceeded {timeout}s timeout, forcing close")
+                    # Cancel the future and shutdown executor immediately
+                    future.cancel()
+                    executor.shutdown(wait=False)
+            except Exception as e:
+                LOGGER.error(f"Error during cluster shutdown: {e}")
+            finally:
+                cls.APP_INSTANCE = None
 
     def prepare(self, query: str) -> PreparedStatement:
         if not (statement := self.prepared_statements.get(query)):

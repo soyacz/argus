@@ -1,5 +1,6 @@
 import logging
 import os
+import atexit
 import cassandra.cluster
 from flask import Flask, request
 from prometheus_flask_exporter import NO_PREFIX
@@ -31,6 +32,16 @@ def register_metrics():
             },
         )
     )
+
+
+def cleanup_on_shutdown():
+    """Cleanup handler for graceful shutdown"""
+    LOGGER.info("Shutting down Scylla cluster connection...")
+    try:
+        ScyllaCluster.shutdown(timeout=5)
+        LOGGER.info("Scylla cluster connection closed successfully")
+    except (cassandra.cluster.NoHostAvailable, RuntimeError) as e:
+        LOGGER.error(f"Error during cleanup: {e}")
 
 
 def start_server(config=None) -> Flask:
@@ -80,6 +91,9 @@ def start_server(config=None) -> Flask:
             register_metrics()
         except ValueError:
             pass
+
+    # Register cleanup handler for graceful shutdown
+    atexit.register(cleanup_on_shutdown)
 
     app.logger.info("Ready.")
     return app
